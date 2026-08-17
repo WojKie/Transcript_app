@@ -31,8 +31,10 @@ Projekt wykorzystuje standardowe biblioteki Pythona oraz jeden zewnÄ™trzny moduÅ
    cd audio-text-validator
    python -m venv venv
 ```
-  # Windows:
-  venv\Scripts\activate
-  # Linux/Mac:
-  source venv/bin/activate
-  pip install pygame
+   # Windows:
+   venv\Scripts\activate
+   # Linux/Mac:
+   source venv/bin/activate
+   pip install pygame
+   # lub
+   python -m pip install pygame-ce
