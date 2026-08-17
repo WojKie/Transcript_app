@@ -37,6 +37,12 @@ class AudioValidatorApp:
         
         self.btn_select = tk.Button(top_frame, text="Wybierz Główny Folder", command=self.select_directory, bg="lightblue")
         self.btn_select.pack(side=tk.LEFT, padx=10, expand=True)
+
+        # Dropdown do wyboru folderu
+        self.folder_combo = ttk.Combobox(top_frame, state='readonly', width=30)
+        self.folder_combo.set("Wybierz folder główny najpierw")
+        self.folder_combo.pack(side=tk.LEFT, padx=10)
+        self.folder_combo.bind('<<ComboboxSelected>>', self.on_folder_selected)
         
         self.btn_next = tk.Button(top_frame, text="Zapisz i Następny >>", state=tk.DISABLED, command=self.go_next, bg="lightgreen")
         self.btn_next.pack(side=tk.RIGHT, padx=10)
@@ -68,6 +74,15 @@ class AudioValidatorApp:
         
     # --- LOGIKA APLIKACJI ---
 
+    def sort_folders(self, folders):
+        """Sortuje foldery: najpierw te z cyframi leksykograficznie, potem reszta alfabetycznie."""
+        def sort_key(item):
+            folder_name = item['folder'].name
+            has_digits = any(char.isdigit() for char in folder_name)
+            return (0 if has_digits else 1, folder_name)
+
+        return sorted(folders, key=sort_key)
+
     def select_directory(self):
         """Otwiera okno wyboru folderu głównego i skanuje go."""
         selected_dir = filedialog.askdirectory(title="Wybierz folder zawierający podfoldery")
@@ -76,6 +91,7 @@ class AudioValidatorApp:
             
         self.main_directory = Path(selected_dir)
         self.valid_folders = []
+        
         
         # Iterujemy przez wszystkie podfoldery w wybranym głównym katalogu
         for subfolder in self.main_directory.iterdir():
@@ -91,6 +107,8 @@ class AudioValidatorApp:
                         "wav": wav_files[0], # bierzemy pierwszy znaleziony
                         "txt": txt_files[0]  # bierzemy pierwszy znaleziony
                     })
+        # Sortuj foldery
+        self.valid_folders = self.sort_folders(self.valid_folders)
                     
         if not self.valid_folders:
             messagebox.showwarning("Brak danych", "W wybranym folderze nie ma podfolderów z plikami .wav i .txt")
@@ -98,6 +116,12 @@ class AudioValidatorApp:
             
         # Jeśli znaleziono poprawne foldery, ustawiamy się na pierwszym
         self.current_index = 0
+
+        # NAJPIERW wypełnij combobox
+        self.folder_combo['values'] = [item['folder'].name for item in self.valid_folders]
+        self.folder_combo.current(self.current_index)
+
+        # POTEM załaduj folder
         self.load_current_item()
         
     def load_current_item(self):
@@ -130,18 +154,26 @@ class AudioValidatorApp:
         self.btn_play_pause.config(state=tk.NORMAL)
         
         # Zarządzanie stanem przycisków
-        self.btn_prev.config(state=tk.NORMAL if self.current_index > 0 else tk.DISABLED)
-        self.btn_next.config(state=tk.NORMAL if self.current_index < len(self.valid_folders) - 1 else tk.DISABLED)
+        # self.btn_prev.config(state=tk.NORMAL if self.current_index > 0 else tk.DISABLED)
+        # self.btn_next.config(state=tk.NORMAL if self.current_index < len(self.valid_folders) - 1 else tk.DISABLED)
+        # Przyciski zawsze aktywne (zapętlenie)
+        self.btn_prev.config(state=tk.NORMAL)
+        self.btn_next.config(state=tk.NORMAL)
+
+        # Synchronizuj combobox
+        # if len(self.valid_folders) > 0:
+        #     self.folder_combo.current(self.current_index)
         
         # 3. Odpalanie audio
         self.play_audio()
 
     def play_audio(self):
         """Uruchamia odtwarzanie pliku WAV."""
-        pygame.mixer.music.load(str(self.current_wav_path))
-        pygame.mixer.music.play()
-        self.is_playing = True
-        self.update_slider_loop() # Uruchamiamy pętlę odświeżającą suwak
+        if self.current_wav_path:
+            pygame.mixer.music.load(str(self.current_wav_path))
+            pygame.mixer.music.play()
+            self.is_playing = True
+            self.update_slider_loop() # Uruchamiamy pętlę odświeżającą suwak
         
     def seek_audio(self, value):
         """Wykonywane, gdy użytkownik przesunie suwak."""
@@ -172,22 +204,45 @@ class AudioValidatorApp:
             content = self.text_editor.get("1.0", tk.END).strip()
             with open(self.current_txt_path, "w", encoding="utf-8") as f:
                 f.write(content)
+    def on_folder_selected(self, event):
+        """Obsługuje wybór folderu z comboboxa."""
+        if not self.valid_folders:
+            return
 
+        self.save_transcript()
+        self.current_index = self.folder_combo.current()
+        pygame.mixer.music.stop()
+        self.load_current_item()
+
+    # def go_next(self):
+    #     """Zapisuje zmiany i przechodzi do następnego folderu."""
+    #     self.save_transcript()
+    #     if self.current_index < len(self.valid_folders) - 1:
+    #         pygame.mixer.music.stop()
+    #         self.current_index += 1
+    #         self.load_current_item()
     def go_next(self):
-        """Zapisuje zmiany i przechodzi do następnego folderu."""
+        """Zapisuje zmiany i przechodzi do następnego folderu (zapętlenie)."""
         self.save_transcript()
-        if self.current_index < len(self.valid_folders) - 1:
-            pygame.mixer.music.stop()
-            self.current_index += 1
-            self.load_current_item()
+        pygame.mixer.music.stop()
+        self.current_index = (self.current_index + 1) % len(self.valid_folders)
+        self.load_current_item()
+        self.folder_combo.current(self.current_index)
 
+    # def go_prev(self):
+    #     """Przechodzi do poprzedniego folderu (też zapisuje profilaktycznie zmiany)."""
+    #     self.save_transcript()
+    #     if self.current_index > 0:
+    #         pygame.mixer.music.stop()
+    #         self.current_index -= 1
+    #         self.load_current_item()
     def go_prev(self):
-        """Przechodzi do poprzedniego folderu (też zapisuje profilaktycznie zmiany)."""
+        """Przechodzi do poprzedniego folderu (zapętlenie)."""
         self.save_transcript()
-        if self.current_index > 0:
-            pygame.mixer.music.stop()
-            self.current_index -= 1
-            self.load_current_item()
+        pygame.mixer.music.stop()
+        self.current_index = (self.current_index - 1) % len(self.valid_folders)
+        self.load_current_item()
+        self.folder_combo.current(self.current_index)
 
 if __name__ == "__main__":
     root = tk.Tk()
