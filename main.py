@@ -9,6 +9,7 @@ class AudioValidatorApp:
         self.root = root
         self.root.title("Audio-Text Validator")
         self.root.geometry("800x600")
+        self.root.configure(bg="#2b2b2b")
         
         # --- ZMIENNE STANU (State Management) ---
         self.main_directory = None
@@ -20,6 +21,14 @@ class AudioValidatorApp:
         
         self.audio_length_seconds = 0.0
         self.is_playing = False
+
+        # Definicja kolorów motywu ciemnego
+        self.bg_dark = "#2b2b2b"        # Ciemnoszare tło
+        self.bg_medium = "#3c3c3c"      # Średnie tło (dla ramek)
+        self.fg_light = "#e0e0e0"       # Jasny tekst
+        self.btn_blue = "#1e3a5f"       # Ciemnoniebieski przycisk
+        self.btn_green = "#2d5016"      # Ciemnozielony przycisk
+        self.btn_yellow = "#5c5c1a"     # Ciemnożółty przycisk
         
         # Inicjalizacja silnika audio
         pygame.mixer.init()
@@ -29,13 +38,13 @@ class AudioValidatorApp:
         
     def setup_ui(self):
         # 1. Górny panel (Przyciski nawigacyjne)
-        top_frame = tk.Frame(self.root, pady=10)
+        top_frame = tk.Frame(self.root, pady=10, bg=self.bg_dark)
         top_frame.pack(fill=tk.X)
         
-        self.btn_prev = tk.Button(top_frame, text="<< Poprzedni folder", state=tk.DISABLED, command=self.go_prev)
+        self.btn_prev = tk.Button(top_frame, text="<< Poprzedni folder", state=tk.DISABLED, command=self.go_prev, bg=self.bg_medium, fg=self.fg_light)
         self.btn_prev.pack(side=tk.LEFT, padx=10)
         
-        self.btn_select = tk.Button(top_frame, text="Wybierz Główny Folder", command=self.select_directory, bg="lightblue")
+        self.btn_select = tk.Button(top_frame, text="Wybierz Główny Folder", command=self.select_directory, bg=self.btn_blue, fg=self.fg_light)
         self.btn_select.pack(side=tk.LEFT, padx=10, expand=True)
 
         # Dropdown do wyboru folderu
@@ -44,18 +53,24 @@ class AudioValidatorApp:
         self.folder_combo.pack(side=tk.LEFT, padx=10)
         self.folder_combo.bind('<<ComboboxSelected>>', self.on_folder_selected)
         
-        self.btn_next = tk.Button(top_frame, text="Zapisz i Następny >>", state=tk.DISABLED, command=self.go_next, bg="lightgreen")
+        self.btn_next = tk.Button(top_frame, text="Zapisz i Następny >>", state=tk.DISABLED, command=self.go_next, bg=self.btn_green, fg=self.fg_light)
         self.btn_next.pack(side=tk.RIGHT, padx=10)
         
-        # Etykieta pokazująca postęp (np. "Folder 1 / 10")
-        self.lbl_progress = tk.Label(self.root, text="Nie wybrano folderu", font=("Arial", 10, "italic"))
-        self.lbl_progress.pack()
+        # Etykieta pokazująca postęp (np. "Folder 1 / 10") + przycisk kopiowania
+        progress_frame = tk.Frame(self.root, pady=5, bg=self.bg_dark)
+        progress_frame.pack(fill=tk.X, padx=20)
+
+        self.lbl_progress = tk.Label(progress_frame, text="Nie wybrano folderu", font=("Arial", 10, "italic"), bg=self.bg_dark, fg=self.fg_light)
+        self.lbl_progress.pack(side=tk.LEFT)
+
+        self.btn_copy = tk.Button(progress_frame, text="Kopiuj nazwę", command=self.copy_folder_name, state=tk.DISABLED, bg=self.btn_yellow, fg=self.fg_light)
+        self.btn_copy.pack(side=tk.LEFT, padx=10)
         
         # 2. Panel Audio (Suwak i przyciski sterujące)
-        audio_frame = tk.Frame(self.root, pady=10)
+        audio_frame = tk.Frame(self.root, pady=10, bg=self.bg_dark)
         audio_frame.pack(fill=tk.X, padx=20)
-        
-        self.btn_play_pause = tk.Button(audio_frame, text="Play / Od nowa", command=self.play_audio, state=tk.DISABLED)
+
+        self.btn_play_pause = tk.Button(audio_frame, text="Play / Od nowa", command=self.play_audio, state=tk.DISABLED, bg=self.bg_medium, fg=self.fg_light)
         self.btn_play_pause.pack(side=tk.LEFT, padx=5)
         
         # Suwak (Scale) używający ttk dla lepszego wyglądu
@@ -64,12 +79,12 @@ class AudioValidatorApp:
         self.slider.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
         
         # 3. Panel Tekstu (Edytor)
-        text_frame = tk.Frame(self.root, pady=10)
+        text_frame = tk.Frame(self.root, pady=10, bg=self.bg_dark)
         text_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-        
-        tk.Label(text_frame, text="Transkrypt (Edytuj, jeśli są błędy):", font=("Arial", 10, "bold")).pack(anchor=tk.W)
-        
-        self.text_editor = tk.Text(text_frame, wrap=tk.WORD, font=("Consolas", 12))
+
+        tk.Label(text_frame, text="Transkrypt (Edytuj, jeśli są błędy):", font=("Arial", 10, "bold"), bg=self.bg_dark, fg=self.fg_light).pack(anchor=tk.W)
+
+        self.text_editor = tk.Text(text_frame, wrap=tk.WORD, font=("Consolas", 12), bg=self.bg_medium, fg=self.fg_light, insertbackground=self.fg_light)
         self.text_editor.pack(fill=tk.BOTH, expand=True)
         
     # --- LOGIKA APLIKACJI ---
@@ -159,6 +174,7 @@ class AudioValidatorApp:
         # Przyciski zawsze aktywne (zapętlenie)
         self.btn_prev.config(state=tk.NORMAL)
         self.btn_next.config(state=tk.NORMAL)
+        self.btn_copy.config(state=tk.NORMAL)
 
         # Synchronizuj combobox
         # if len(self.valid_folders) > 0:
@@ -204,6 +220,26 @@ class AudioValidatorApp:
             content = self.text_editor.get("1.0", tk.END).strip()
             with open(self.current_txt_path, "w", encoding="utf-8") as f:
                 f.write(content)
+    def copy_folder_name(self):
+        """Kopiuje nazwę aktualnego folderu do schowka."""
+        if not self.valid_folders:
+            return
+
+        folder_name = self.valid_folders[self.current_index]['folder'].name
+        self.root.clipboard_clear()
+        self.root.clipboard_append(folder_name)
+        self.root.update()  # Wymaga Tkinter aby zaktualizować schowek
+
+        # Zmień tekst przycisku na potwierdzenie
+        self.btn_copy.config(text="✓ Skopiowano")
+
+        # Przywróć tekst po 2 sekundach
+        self.root.after(2000, self.reset_copy_button)
+
+    def reset_copy_button(self):
+        """Przywraca oryginalny tekst przycisku kopiowania."""
+        self.btn_copy.config(text="Kopiuj nazwę")
+    
     def on_folder_selected(self, event):
         """Obsługuje wybór folderu z comboboxa."""
         if not self.valid_folders:
